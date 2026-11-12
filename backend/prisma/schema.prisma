@@ -1,0 +1,116 @@
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  ADMIN
+  ACCOUNT_HOLDER
+  AUDITOR
+}
+
+enum AccountStatus {
+  ACTIVE
+  FROZEN
+  CLOSED
+}
+
+enum TransactionType {
+  DEPOSIT
+  WITHDRAWAL
+  TRANSFER
+}
+
+enum TransactionStatus {
+  PENDING
+  COMPLETED
+  FAILED
+}
+
+enum EntryType {
+  DEBIT
+  CREDIT
+}
+
+model User {
+  id           String   @id @default(uuid())
+  name         String
+  email        String   @unique
+  passwordHash String
+  role         Role     @default(ACCOUNT_HOLDER)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  accounts     Account[]
+  auditLogs    AuditLog[]
+}
+
+model Account {
+  id        String        @id @default(uuid())
+  accountNo String        @unique
+  balance   BigInt        @default(0)
+  status    AccountStatus @default(ACTIVE)
+  userId    String
+  createdAt DateTime      @default(now())
+  updatedAt DateTime      @updatedAt
+
+  user      User          @relation(fields: [userId], references: [id])
+  ledgerEntries LedgerEntry[]
+}
+
+model Transaction {
+  id             String            @id @default(uuid())
+  type           TransactionType
+  status         TransactionStatus @default(PENDING)
+  amount         BigInt
+  reference      String            @unique
+  description    String?
+  createdAt      DateTime          @default(now())
+
+  ledgerEntries  LedgerEntry[]
+}
+
+model LedgerEntry {
+  id            String      @id @default(uuid())
+  transactionId String
+  accountId     String
+  entryType     EntryType
+  amount        BigInt
+  createdAt     DateTime    @default(now())
+
+  transaction   Transaction @relation(fields: [transactionId], references: [id])
+  account       Account     @relation(fields: [accountId], references: [id])
+
+  @@index([accountId, createdAt])
+  @@index([transactionId])
+}
+
+model AuditLog {
+  id        String   @id @default(uuid())
+  userId    String?
+  action    String
+  details   Json?
+  createdAt DateTime @default(now())
+
+  user      User?    @relation(fields: [userId], references: [id])
+
+  @@index([createdAt])
+}
+
+
+model IdempotencyKey {
+  id            String   @id @default(uuid())
+  key           String   @unique
+  userId        String
+  requestHash   String
+  response      Json?
+  createdAt     DateTime @default(now())
+
+  @@index([userId, createdAt])
+}
+
